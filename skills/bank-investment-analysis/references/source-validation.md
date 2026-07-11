@@ -65,7 +65,7 @@
 - `[估计]`：依赖假设；
 - `[推断]`：因果解释，存在替代解释。
 
-正式财报点评同时使用 [earnings-review-data-dictionary.md](earnings-review-data-dictionary.md) 和内部144项指标清单，并将底稿完整内嵌到 Markdown 附录。核心表不得将状态和可信度隐藏在脚注。
+正式财报点评同时使用 [earnings-review-data-dictionary.md](earnings-review-data-dictionary.md) 和内部144项指标清单完成提取与核对。默认报告不展开逐项底稿，但核心表必须直接展示关键证据、数据性质和可靠程度，C/D级估算必须展示公式、假设、区间、残差和限制。用户明确要求审计底稿、逐项追溯、完整数据附录或监管复核时，再把完整底稿内嵌到 Markdown 附录。
 
 ## 5. 口径陷阱清单
 

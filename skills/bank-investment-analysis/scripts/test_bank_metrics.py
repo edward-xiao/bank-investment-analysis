@@ -338,7 +338,6 @@ class BankMetricsTest(unittest.TestCase):
             "## 10. 资本与增长质量",
             "## 13. 财报基本面评分（试行）",
             "## 15. 数据完整度与可信度",
-            "## 附录A：可追溯数据底稿",
         ]
         for section in required_sections:
             self.assertIn(section, template)
@@ -379,22 +378,16 @@ class BankMetricsTest(unittest.TestCase):
         )
         self.assertNotIn("收益率", loan_product_header)
 
-        appendix_columns = [
-            "编号",
-            "分析模块·指标",
-            "数值·单位",
-            "数据期间·对比期",
-            "范围·统计口径",
-            "数据性质·可靠程度",
-            "证据文件·页码",
-            "计算方法·假设·限制",
-        ]
-        for column in appendix_columns:
-            self.assertIn(column, template)
+        self.assertLess(
+            template.index("## 14. 数据来源、公式、假设与限制"),
+            template.index("## 15. 数据完整度与可信度"),
+        )
         self.assertLess(
             template.index("## 15. 数据完整度与可信度"),
-            template.index("## 附录A：可追溯数据底稿"),
+            template.index("本文为研究分析，不构成投资建议"),
         )
+        self.assertNotIn("## 附录A：可追溯数据底稿", template)
+        self.assertNotIn("D001", template)
         self.assertNotIn("## 0. 数据完整度", template)
         self.assertNotIn("与此前预测或指引对比", template)
         self.assertNotIn("### A.1", template)
@@ -427,9 +420,8 @@ class BankMetricsTest(unittest.TestCase):
         self.assertIn("### 13.1 评分结果摘要", template)
         self.assertIn("评分发布状态", template)
         self.assertIn("证据充分度", template)
-        self.assertIn("它不是第二份财报正文", template)
-        self.assertIn("数据性质：", template)
-        self.assertIn("可靠程度：", template)
+        self.assertIn("官方文件、页码、交叉验证", template)
+        self.assertIn("最低可靠程度", template)
         self.assertNotIn("status:", template)
         self.assertNotIn("confidence:", template)
         self.assertNotIn("source_file:", template)
@@ -440,13 +432,17 @@ class BankMetricsTest(unittest.TestCase):
         skill_text = (skill_root / "SKILL.md").read_text(encoding="utf-8")
         agent_text = (skill_root / "agents" / "openai.yaml").read_text(encoding="utf-8")
         self.assertIn("只交付一个 Markdown 文件", skill_text)
-        self.assertIn("不保留独立CSV", skill_text)
+        self.assertIn("默认报告不展开逐项数据底稿", skill_text)
+        self.assertIn("审计模式", skill_text)
+        self.assertIn("逐项追溯", skill_text)
+        self.assertNotIn("不保留独立CSV", skill_text)
         self.assertIn("E001", skill_text)
         self.assertIn("Mermaid", skill_text)
         self.assertIn("不产生外部图片附件", skill_text)
         self.assertIn("report-visual-design.md", skill_text)
         self.assertIn("存款细分", skill_text)
-        self.assertIn("单一 Markdown 报告", agent_text)
+        self.assertIn("数据完整度", agent_text)
+        self.assertNotIn("144项核心记录", agent_text)
         self.assertNotIn("Markdown 与 CSV 文件", agent_text)
 
 
