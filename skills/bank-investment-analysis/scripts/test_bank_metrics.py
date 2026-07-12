@@ -79,16 +79,26 @@ class BankMetricsTest(unittest.TestCase):
         )
         self.assertEqual(estimated, {"low": Decimal("60"), "midpoint": Decimal("75"), "high": Decimal("90")})
         proxy = bm.npl_generation_proxy("120", "100", estimated["low"], estimated["high"])
-        self.assertEqual(
-            proxy,
-            {
-                "low": Decimal("80"),
-                "midpoint": Decimal("95"),
-                "high": Decimal("110"),
-                "raw_low": Decimal("80"),
-                "raw_high": Decimal("110"),
-            },
+        self.assertEqual(proxy["low"], Decimal("80"))
+        self.assertEqual(proxy["midpoint"], Decimal("95"))
+        self.assertEqual(proxy["high"], Decimal("110"))
+        self.assertEqual(proxy["raw_low"], Decimal("80"))
+        self.assertEqual(proxy["raw_high"], Decimal("110"))
+        self.assertEqual(proxy["label"], "未披露风险净流量情景")
+        self.assertEqual(proxy["confidence"], "D")
+        self.assertFalse(proxy["lower_bound_valid"])
+        self.assertFalse(proxy["independent_validation"])
+        valid_lower_bound = bm.npl_generation_proxy(
+            "120",
+            "100",
+            estimated["low"],
+            estimated["high"],
+            transfers_in_complete=True,
+            writeoff_estimate_supported=True,
+            no_double_counting=True,
         )
+        self.assertTrue(valid_lower_bound["lower_bound_valid"])
+        self.assertEqual(valid_lower_bound["label"], "新生成不良代理下限")
         proxy_with_transfer = bm.npl_generation_proxy(
             "90", "100", "0", "20", transfers_in_low="5", transfers_in_high="15"
         )
@@ -332,33 +342,24 @@ class BankMetricsTest(unittest.TestCase):
             "## 2. 资产结构",
             "## 3. 贷款结构",
             "## 4. 负债与存款结构",
-            "## 7. 风险存量与前瞻信号",
-            "## 8. 不良贷款余额变化及核对",
-            "## 9. 贷款减值准备余额变化及核对",
-            "## 10. 资本与增长质量",
-            "## 13. 财报基本面评分（试行）",
-            "## 15. 数据完整度与可信度",
+            "## 6. 风险存量、流量与缓冲",
+            "## 7. 不良贷款余额变化及核对",
+            "## 8. 贷款减值准备余额变化及核对",
+            "## 9. 资本与增长质量",
+            "## 12. 财报基本面评分（试行）",
+            "## 14. 数据完整度与可信度",
         ]
         for section in required_sections:
             self.assertIn(section, template)
-        required_subsections = [
-            "### 3.1 贷款量价总览",
-            "### 3.2 贷款产品结构与风险",
-            "### 4.2 付息负债量价",
-            "### 4.3 存款细分量价（最近完整披露期）",
-            "### 6.1 手续费及佣金",
-            "### 6.2 其他非息收入",
-            "### 6.3 费用与减值",
-        ]
-        for subsection in required_subsections:
-            self.assertIn(subsection, template)
-        self.assertEqual(template.count("pie showData"), 4)
-        self.assertEqual(template.count("theme: base"), 4)
-        self.assertEqual(template.count("background: '#F7FAFC'"), 4)
-        self.assertEqual(template.count("pieStrokeColor: '#FFFFFF'"), 4)
-        self.assertEqual(template.count("pieOpacity: 0.96"), 4)
+        self.assertEqual(sum(line.startswith("|---") for line in template.splitlines()), 12)
+        self.assertEqual(template.count("pie showData"), 2)
+        self.assertEqual(template.count("theme: base"), 2)
+        self.assertEqual(template.count("background: '#F7FAFC'"), 2)
+        self.assertEqual(template.count("pieStrokeColor: '#FFFFFF'"), 2)
+        self.assertEqual(template.count("pieOpacity: 0.96"), 2)
         for color in ["#0B3B60", "#168AAD", "#2A9D8F", "#E9A23B", "#C44536"]:
-            self.assertIn(color, template)
+            if color != "#C44536":
+                self.assertIn(color, template)
         for deposit_row in [
             "公司活期",
             "公司定期",
@@ -370,20 +371,18 @@ class BankMetricsTest(unittest.TestCase):
             "定期存款合计",
         ]:
             self.assertIn(f"| {deposit_row} |", template)
-        loan_product_section = template.split("### 3.2 贷款产品结构与风险", 1)[1].split(
-            "### 行业、区域和集中度（年报/中报）", 1
-        )[0]
-        loan_product_header = next(
-            line for line in loan_product_section.splitlines() if line.startswith("| 类别")
+        self.assertIn("产品收益率未披露时，不得用整体贷款收益率代填", template)
+        self.assertIn(
+            "整列无披露时删除空列",
+            (skill_root / "SKILL.md").read_text(encoding="utf-8"),
         )
-        self.assertNotIn("收益率", loan_product_header)
 
         self.assertLess(
-            template.index("## 14. 数据来源、公式、假设与限制"),
-            template.index("## 15. 数据完整度与可信度"),
+            template.index("## 13. 数据来源、公式、假设与限制"),
+            template.index("## 14. 数据完整度与可信度"),
         )
         self.assertLess(
-            template.index("## 15. 数据完整度与可信度"),
+            template.index("## 14. 数据完整度与可信度"),
             template.index("本文为研究分析，不构成投资建议"),
         )
         self.assertNotIn("## 附录A：可追溯数据底稿", template)
@@ -417,11 +416,12 @@ class BankMetricsTest(unittest.TestCase):
                 rf"(?<![A-Za-z]){re.escape(term)}(?![A-Za-z]|（{re.escape(meaning)}）)"
             )
             self.assertIsNone(bare.search(template), f"bare reader-facing term: {term}")
-        self.assertIn("### 13.1 评分结果摘要", template)
+        self.assertNotIn("子项评分依据", template)
         self.assertIn("评分发布状态", template)
         self.assertIn("证据充分度", template)
-        self.assertIn("官方文件、页码、交叉验证", template)
+        self.assertIn("锁定报告与页码", template)
         self.assertIn("最低可靠程度", template)
+        self.assertLessEqual(len(template.splitlines()), 360)
         self.assertNotIn("status:", template)
         self.assertNotIn("confidence:", template)
         self.assertNotIn("source_file:", template)

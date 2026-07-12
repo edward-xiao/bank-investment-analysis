@@ -286,13 +286,22 @@ def npl_generation_proxy(
     writeoffs_and_transfers_high: object,
     transfers_in_low: object = ZERO,
     transfers_in_high: object = ZERO,
-) -> dict[str, Decimal]:
-    """Return a non-negative proxy interval for gross new NPL formation.
+    *,
+    transfers_in_complete: bool = False,
+    writeoff_estimate_supported: bool = False,
+    no_double_counting: bool = False,
+) -> dict[str, Decimal | str | bool]:
+    """Return a non-negative scenario interval for undisclosed NPL formation.
 
     The proxy adds disclosed/estimated write-offs and transfers out to the NPL
-    balance change, then subtracts known transfers in. It omits cash recovery,
-    upgrades, bulk sales and other disposals, so it is a lower-bound proxy only
-    when transfers in and consolidation effects are captured separately.
+    balance change, then subtracts known transfers in.  It may be called a
+    lower bound only when all three validity flags are true: transfers-in and
+    consolidation effects are complete, the write-off estimate is supported
+    by a loan-provision roll-forward, and no disposal is double counted.  With
+    any flag false the output is a D-grade scenario, not a lower bound.
+
+    The interval and its zero residual are constructed from the same identity;
+    they are not independent validation of asset quality.
     """
 
     writeoff = _validated_range(
@@ -306,12 +315,22 @@ def npl_generation_proxy(
     raw_high = delta_npl + writeoff[1] - transfers_in[0]
     low = max(ZERO, raw_low)
     high = max(low, raw_high)
+    lower_bound_valid = all(
+        (transfers_in_complete, writeoff_estimate_supported, no_double_counting)
+    )
     return {
         "low": low,
         "midpoint": (low + high) / Decimal("2"),
         "high": high,
         "raw_low": raw_low,
         "raw_high": raw_high,
+        "label": (
+            "新生成不良代理下限" if lower_bound_valid else "未披露风险净流量情景"
+        ),
+        "confidence": "D",
+        "lower_bound_valid": lower_bound_valid,
+        "independent_validation": False,
+        "constructed_from_same_identity": True,
     }
 
 
